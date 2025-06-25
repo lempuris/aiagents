@@ -2,7 +2,9 @@ import React from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 function Dashboard({ reportData }) {
-  if (!reportData) return <div>Loading...</div>;
+  if (!reportData || !reportData.revenue_data || !reportData.expense_data || !reportData.product_data) {
+    return <div>Loading...</div>;
+  }
 
   const revenueByMonth = reportData.revenue_data.reduce((acc, item) => {
     const existing = acc.find(x => x.month === item.month);

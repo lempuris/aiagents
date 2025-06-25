@@ -21,7 +21,6 @@ class LLMAgent:
         messages.extend(self.conversation_history)
         print(f"user input: {user_input}")
         print(f"messages: {messages}")
-        print(f"conversation history: {self.conversation_history}" )
         messages.append({"role": "user", "content": user_input})
         
         response = self.client.chat.completions.create(

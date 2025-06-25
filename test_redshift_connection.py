@@ -7,7 +7,7 @@ load_dotenv()
 
 def test_network_connectivity():
     """Test basic network connectivity to Redshift"""
-    host = os.getenv('REDSHIFT_HOST', 'default-workgroup.176835474511.us-east-2.redshift-serverless.amazonaws.com')
+    host = os.getenv('REDSHIFT_HOST', 'your-redshift-host.amazonaws.com')
     port = int(os.getenv('REDSHIFT_PORT', '5439'))
     
     print(f"Testing connection to {host}:{port}")
