@@ -8,6 +8,7 @@ import Expenses from './pages/Expenses';
 import Customers from './pages/Customers';
 import Products from './pages/Products';
 import AIInsights from './pages/AIInsights';
+import Predictions from './pages/Predictions';
 import './App.css';
 
 function App() {
@@ -20,7 +21,7 @@ function App() {
 
   const fetchReport = async () => {
     try {
-      const response = await axios.get('http://localhost:5001/api/report');
+      const response = await axios.get('http://localhost:5000/api/report');
       setReportData(response.data);
     } catch (error) {
       console.error('Error fetching report:', error);
@@ -83,6 +84,7 @@ function App() {
           <Route path="/customers" element={<Customers reportData={reportData} />} />
           <Route path="/products" element={<Products reportData={reportData} />} />
           <Route path="/ai-insights" element={<AIInsights reportData={reportData} />} />
+          <Route path="/predictions" element={<Predictions />} />
         </Routes>
       </div>
     </Router>

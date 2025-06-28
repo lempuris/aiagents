@@ -10,7 +10,8 @@ function Navigation() {
     { path: '/expenses', label: 'Expenses' },
     { path: '/customers', label: 'Customers' },
     { path: '/products', label: 'Products' },
-    { path: '/ai-insights', label: 'AI Insights' }
+    { path: '/ai-insights', label: 'AI Insights' },
+    { path: '/predictions', label: '🔮 Predictions' }
   ];
 
   return (

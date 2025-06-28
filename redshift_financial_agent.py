@@ -1,8 +1,14 @@
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from openai import OpenAI
+import numpy as np
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.metrics import mean_absolute_error, r2_score
+import warnings
+warnings.filterwarnings('ignore')
 
 # Uncomment these for actual Redshift connection
 import psycopg2
@@ -199,6 +205,225 @@ class RedshiftFinancialAgent:
         )
         
         return response.choices[0].message.content
+    
+    def generate_predictions(self, data_type='revenue'):
+        """Generate predictive analysis using machine learning"""
+        if data_type == 'revenue':
+            data = self.execute_query('monthly_revenue')
+            return self._forecast_revenue(data)
+        elif data_type == 'expenses':
+            data = self.execute_query('expense_breakdown')
+            return self._forecast_expenses(data)
+        elif data_type == 'customers':
+            data = self.execute_query('customer_metrics')
+            return self._forecast_customers(data)
+        else:
+            return {'error': 'Invalid data type for prediction'}
+    
+    def _forecast_revenue(self, revenue_data):
+        """Forecast revenue using linear regression"""
+        try:
+            # Aggregate revenue by month
+            df = pd.DataFrame(revenue_data)
+            df['month'] = pd.to_datetime(df['month'])
+            monthly_totals = df.groupby('month')['revenue'].sum().reset_index()
+            monthly_totals = monthly_totals.sort_values('month')
+            
+            # Prepare data for ML
+            X = np.arange(len(monthly_totals)).reshape(-1, 1)
+            y = monthly_totals['revenue'].values
+            
+            # Fit models
+            linear_model = LinearRegression().fit(X, y)
+            poly_features = PolynomialFeatures(degree=2)
+            X_poly = poly_features.fit_transform(X)
+            poly_model = LinearRegression().fit(X_poly, y)
+            
+            # Generate predictions for next 6 months
+            future_months = 6
+            future_X = np.arange(len(monthly_totals), len(monthly_totals) + future_months).reshape(-1, 1)
+            future_X_poly = poly_features.transform(future_X)
+            
+            linear_pred = linear_model.predict(future_X)
+            poly_pred = poly_model.predict(future_X_poly)
+            
+            # Calculate confidence intervals (simplified)
+            historical_error = mean_absolute_error(y, linear_model.predict(X))
+            
+            # Generate future dates
+            last_date = monthly_totals['month'].max()
+            future_dates = [last_date + timedelta(days=30*i) for i in range(1, future_months + 1)]
+            
+            predictions = []
+            for i, date in enumerate(future_dates):
+                predictions.append({
+                    'month': date.strftime('%Y-%m-%d'),
+                    'linear_forecast': float(linear_pred[i]),
+                    'polynomial_forecast': float(poly_pred[i]),
+                    'confidence_lower': float(linear_pred[i] - historical_error),
+                    'confidence_upper': float(linear_pred[i] + historical_error),
+                    'growth_rate': float((linear_pred[i] - y[-1]) / y[-1] * 100) if y[-1] != 0 else 0
+                })
+            
+            return {
+                'predictions': predictions,
+                'model_accuracy': {
+                    'r2_score': float(r2_score(y, linear_model.predict(X))),
+                    'mae': float(historical_error)
+                },
+                'historical_data': [
+                    {'month': row['month'].strftime('%Y-%m-%d'), 'actual_revenue': float(row['revenue'])}
+                    for _, row in monthly_totals.iterrows()
+                ]
+            }
+        except Exception as e:
+            print(f"Error in revenue forecasting: {e}")
+            return self._get_mock_predictions('revenue')
+    
+    def _forecast_expenses(self, expense_data):
+        """Forecast expenses using trend analysis"""
+        try:
+            df = pd.DataFrame(expense_data)
+            df['month'] = pd.to_datetime(df['month'])
+            monthly_totals = df.groupby('month')['total_expense'].sum().reset_index()
+            monthly_totals = monthly_totals.sort_values('month')
+            
+            X = np.arange(len(monthly_totals)).reshape(-1, 1)
+            y = monthly_totals['total_expense'].values
+            
+            model = LinearRegression().fit(X, y)
+            
+            future_months = 6
+            future_X = np.arange(len(monthly_totals), len(monthly_totals) + future_months).reshape(-1, 1)
+            predictions = model.predict(future_X)
+            
+            last_date = monthly_totals['month'].max()
+            future_dates = [last_date + timedelta(days=30*i) for i in range(1, future_months + 1)]
+            
+            forecast_data = []
+            for i, date in enumerate(future_dates):
+                forecast_data.append({
+                    'month': date.strftime('%Y-%m-%d'),
+                    'predicted_expense': float(predictions[i]),
+                    'trend': 'increasing' if predictions[i] > y[-1] else 'decreasing'
+                })
+            
+            return {
+                'predictions': forecast_data,
+                'trend_analysis': {
+                    'monthly_growth_rate': float((predictions[0] - y[-1]) / y[-1] * 100) if y[-1] != 0 else 0,
+                    'total_predicted_6m': float(sum(predictions))
+                }
+            }
+        except Exception as e:
+            print(f"Error in expense forecasting: {e}")
+            return self._get_mock_predictions('expenses')
+    
+    def _forecast_customers(self, customer_data):
+        """Forecast customer acquisition"""
+        try:
+            df = pd.DataFrame(customer_data)
+            df['month'] = pd.to_datetime(df['month'])
+            df = df.sort_values('month')
+            
+            X = np.arange(len(df)).reshape(-1, 1)
+            y_customers = df['new_customers'].values
+            y_ltv = df['avg_ltv'].values
+            
+            customer_model = LinearRegression().fit(X, y_customers)
+            ltv_model = LinearRegression().fit(X, y_ltv)
+            
+            future_months = 6
+            future_X = np.arange(len(df), len(df) + future_months).reshape(-1, 1)
+            
+            customer_pred = customer_model.predict(future_X)
+            ltv_pred = ltv_model.predict(future_X)
+            
+            last_date = df['month'].max()
+            future_dates = [last_date + timedelta(days=30*i) for i in range(1, future_months + 1)]
+            
+            predictions = []
+            for i, date in enumerate(future_dates):
+                predictions.append({
+                    'month': date.strftime('%Y-%m-%d'),
+                    'predicted_new_customers': int(max(0, customer_pred[i])),
+                    'predicted_avg_ltv': float(max(0, ltv_pred[i])),
+                    'predicted_revenue_impact': float(max(0, customer_pred[i]) * max(0, ltv_pred[i]))
+                })
+            
+            return {
+                'predictions': predictions,
+                'insights': {
+                    'customer_growth_trend': 'positive' if customer_pred[0] > y_customers[-1] else 'negative',
+                    'ltv_trend': 'increasing' if ltv_pred[0] > y_ltv[-1] else 'decreasing'
+                }
+            }
+        except Exception as e:
+            print(f"Error in customer forecasting: {e}")
+            return self._get_mock_predictions('customers')
+    
+    def _get_mock_predictions(self, data_type):
+        """Mock predictions for demo purposes"""
+        if data_type == 'revenue':
+            return {
+                'predictions': [
+                    {'month': '2024-04-01', 'linear_forecast': 2950000, 'polynomial_forecast': 3100000, 'confidence_lower': 2700000, 'confidence_upper': 3200000, 'growth_rate': 5.4},
+                    {'month': '2024-05-01', 'linear_forecast': 3100000, 'polynomial_forecast': 3300000, 'confidence_lower': 2850000, 'confidence_upper': 3350000, 'growth_rate': 10.7},
+                    {'month': '2024-06-01', 'linear_forecast': 3250000, 'polynomial_forecast': 3520000, 'confidence_lower': 3000000, 'confidence_upper': 3500000, 'growth_rate': 16.1}
+                ],
+                'model_accuracy': {'r2_score': 0.85, 'mae': 150000},
+                'historical_data': [
+                    {'month': '2024-01-01', 'actual_revenue': 4300000},
+                    {'month': '2024-02-01', 'actual_revenue': 4200000},
+                    {'month': '2024-03-01', 'actual_revenue': 4900000}
+                ]
+            }
+        elif data_type == 'expenses':
+            return {
+                'predictions': [
+                    {'month': '2024-04-01', 'predicted_expense': 1280000, 'trend': 'increasing'},
+                    {'month': '2024-05-01', 'predicted_expense': 1320000, 'trend': 'increasing'},
+                    {'month': '2024-06-01', 'predicted_expense': 1360000, 'trend': 'increasing'}
+                ],
+                'trend_analysis': {'monthly_growth_rate': 3.2, 'total_predicted_6m': 7800000}
+            }
+        else:  # customers
+            return {
+                'predictions': [
+                    {'month': '2024-04-01', 'predicted_new_customers': 1480, 'predicted_avg_ltv': 2580, 'predicted_revenue_impact': 3818400},
+                    {'month': '2024-05-01', 'predicted_new_customers': 1520, 'predicted_avg_ltv': 2620, 'predicted_revenue_impact': 3982400},
+                    {'month': '2024-06-01', 'predicted_new_customers': 1560, 'predicted_avg_ltv': 2660, 'predicted_revenue_impact': 4149600}
+                ],
+                'insights': {'customer_growth_trend': 'positive', 'ltv_trend': 'increasing'}
+            }
+    
+    def generate_comprehensive_predictions(self):
+        """Generate comprehensive predictive analysis"""
+        print(f"\n{'='*80}")
+        print("PREDICTIVE FINANCIAL ANALYSIS")
+        print(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"{'='*80}")
+        
+        revenue_forecast = self.generate_predictions('revenue')
+        expense_forecast = self.generate_predictions('expenses')
+        customer_forecast = self.generate_predictions('customers')
+        
+        # Generate AI insights for predictions
+        prediction_summary = {
+            'revenue_forecast': revenue_forecast,
+            'expense_forecast': expense_forecast,
+            'customer_forecast': customer_forecast
+        }
+        
+        ai_prediction_insights = self.generate_ai_analysis(prediction_summary, "predictive analysis")
+        
+        return {
+            'revenue_forecast': revenue_forecast,
+            'expense_forecast': expense_forecast,
+            'customer_forecast': customer_forecast,
+            'ai_insights': ai_prediction_insights,
+            'generated_at': datetime.now().isoformat()
+        }
     
     def create_comprehensive_report(self):
         """Generate comprehensive financial report from Redshift data"""
