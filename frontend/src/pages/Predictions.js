@@ -7,6 +7,7 @@ const Predictions = () => {
   const [predictions, setPredictions] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('revenue');
+  const [insightsTab, setInsightsTab] = useState('trends');
 
   useEffect(() => {
     fetchPredictions();
@@ -233,13 +234,60 @@ const Predictions = () => {
       </div>
 
       <div className="ai-insights-section">
-        <h3>🤖 AI Predictive Insights</h3>
+        <div className="insights-header">
+          <div className="insights-icon">🤖</div>
+          <div>
+            <h3>AI Predictive Insights</h3>
+            <p className="insights-subtitle">Advanced analysis powered by machine learning</p>
+          </div>
+        </div>
+        
+        <div className="insights-tabs">
+          <button 
+            className={`insights-tab ${insightsTab === 'trends' ? 'active' : ''}`}
+            onClick={() => setInsightsTab('trends')}
+          >
+            📊 Trends
+          </button>
+          <button 
+            className={`insights-tab ${insightsTab === 'risks' ? 'active' : ''}`}
+            onClick={() => setInsightsTab('risks')}
+          >
+            ⚠️ Risks
+          </button>
+          <button 
+            className={`insights-tab ${insightsTab === 'recommendations' ? 'active' : ''}`}
+            onClick={() => setInsightsTab('recommendations')}
+          >
+            💡 Actions
+          </button>
+        </div>
+        
         <div className="ai-insights-content">
-          {predictions.ai_insights.split('.').filter(sentence => sentence.trim()).map((sentence, index) => (
-            <div key={index} className="insight-point">
-              • {sentence.trim()}.
-            </div>
-          ))}
+          {(() => {
+            const sections = predictions.ai_insights.split(/\d+\./)
+              .filter(section => section.trim())
+              .map((section, index) => ({
+                title: ['Key Trends & Insights', 'Performance Drivers', 'Risk Factors', 'Strategic Recommendations', 'Forecast Implications'][index] || 'Analysis',
+                content: section.trim(),
+                icon: ['📊', '🚀', '⚠️', '💡', '🔮'][index] || '📈',
+                category: ['trends', 'trends', 'risks', 'recommendations', 'recommendations'][index] || 'trends'
+              }));
+            
+            const filteredSections = sections.filter(section => section.category === insightsTab);
+            
+            return filteredSections.map((section, index) => (
+              <div key={index} className="insight-section">
+                <div className="section-title">
+                  <span className="section-icon">{section.icon}</span>
+                  {section.title}
+                </div>
+                <div className="insight-card">
+                  <div className="insight-text">{section.content}</div>
+                </div>
+              </div>
+            ));
+          })()}
         </div>
       </div>
     </div>

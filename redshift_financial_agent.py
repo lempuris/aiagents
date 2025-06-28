@@ -185,14 +185,7 @@ class RedshiftFinancialAgent:
         
         {json.dumps(data, indent=2, default=json_serializer)}
         
-        Provide:
-        1. Key trends and insights
-        2. Performance drivers
-        3. Risk factors
-        4. Strategic recommendations
-        5. Forecast implications
-        
-        Be specific and actionable.
+        Provide key trends and insights, performance drivers, risk factors, strategic recommendations, and forecast implications. Be specific and actionable. Format your response as clear, concise sentences without numbering.
         """
         
         response = self.client.chat.completions.create(
